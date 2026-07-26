@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WonderClock</string>
+    <string name="app_tagline">A clock widget that looks like you made it</string>
+
+    <string name="configure_widget">Widget settings</string>
+    <string name="widget_content_description">Clock</string>
+
+    <string name="widget_digital_label">WonderClock · Digital</string>
+    <string name="widget_analog_label">WonderClock · Analog</string>
+    <string name="widget_word_label">WonderClock · Words</string>
+
+    <string name="widget_digital_description">A fully customizable digital clock. Fonts, colors, gradients, date and extras.</string>
+    <string name="widget_analog_description">A customizable analog face with configurable dial and hands.</string>
+    <string name="widget_word_description">Tells the time in words, as a sentence or a letter grid.</string>
+
+    <!-- Home -->
+    <string name="home_your_widgets">Your widgets</string>
+    <string name="home_no_widgets_title">No widgets yet</string>
+    <string name="home_no_widgets_body">Long-press your home screen, choose Widgets, and look for WonderClock. Or let us place one for you.</string>
+    <string name="home_add_widget">Add a widget</string>
+    <string name="home_presets">Presets</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_edit">Edit</string>
+
+    <!-- Editor -->
+    <string name="editor_save">Save</string>
+    <string name="editor_cancel">Cancel</string>
+    <string name="editor_reset">Reset to preset</string>
+    <string name="editor_preview">Preview</string>
+
+    <!-- Settings -->
+    <string name="settings_exact_alarms">Minute-accurate updates</string>
+    <string name="settings_exact_alarms_body">Allow exact alarms so the clock flips the moment the minute changes. Without it, updates can drift by a minute or two.</string>
+    <string name="settings_exact_alarms_granted">Granted — the widget updates on the minute.</string>
+    <string name="settings_battery">Background restrictions</string>
+    <string name="settings_battery_body">If the widget freezes, exempt WonderClock from battery optimization.</string>
+    <string name="settings_grant">Grant</string>
+    <string name="settings_open">Open</string>
+    <string name="about">About</string>
+</resources>

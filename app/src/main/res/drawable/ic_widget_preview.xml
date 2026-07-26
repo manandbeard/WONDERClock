@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="180dp"
+    android:height="90dp"
+    android:viewportWidth="180"
+    android:viewportHeight="90">
+
+    <path
+        android:fillColor="#E6161A2B"
+        android:pathData="M0,18 A18,18 0 0,1 18,0 L162,0 A18,18 0 0,1 180,18 L180,72 A18,18 0 0,1 162,90 L18,90 A18,18 0 0,1 0,72 Z" />
+
+    <!-- "10:24" laid out as simple strokes so the picker preview reads well
+         even on platforms that only support previewImage. -->
+    <group android:translateX="34" android:translateY="26">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M4,4 L10,0 L10,32"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="3" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M22,8 A9,9 0 0,1 40,8 L40,24 A9,9 0 0,1 22,24 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3" />
+        <path
+            android:fillColor="#FF7DD3FC"
+            android:pathData="M50,9 m-2.6,0 a2.6,2.6 0 1,1 5.2,0 a2.6,2.6 0 1,1 -5.2,0" />
+        <path
+            android:fillColor="#FF7DD3FC"
+            android:pathData="M50,23 m-2.6,0 a2.6,2.6 0 1,1 5.2,0 a2.6,2.6 0 1,1 -5.2,0" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M62,8 A9,9 0 0,1 80,8 L62,32 L80,32"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="3" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M104,0 L92,22 L112,22 M106,12 L106,32"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="3" />
+    </group>
+</vector>
