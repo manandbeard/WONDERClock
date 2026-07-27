@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.manandbeard.wonderclock.data.ClockConfig
 import com.manandbeard.wonderclock.data.ClockStyle
 import com.manandbeard.wonderclock.data.ConfigStore
@@ -70,13 +76,23 @@ fun HomeScreen(onEditWidget: (Int) -> Unit) {
     val context = LocalContext.current
     val resumeCount = rememberResumeCounter()
     val env = rememberLiveEnv(60_000L)
-
-    // Re-read on every resume: widgets can be added, removed or edited while
-    // this screen is in the background.
-    val widgetIds = remember(resumeCount) { WidgetUpdater.allWidgetIds(context).toList() }
-    val exactAlarms = remember(resumeCount) { TickScheduler.canScheduleExact(context) }
+    val scope = rememberCoroutineScope()
 
     var applying by remember { mutableStateOf<Preset?>(null) }
+    // Bumped when we change a widget ourselves, so the thumbnails refresh
+    // without waiting for the next resume.
+    var revision by remember { mutableStateOf(0) }
+
+    // Re-read on every resume: widgets can be added, removed or edited while
+    // this screen is in the background. Reading them here rather than inside
+    // the cards keeps the prefs hit and JSON parse off every recomposition.
+    val widgetIds = remember(resumeCount, revision) {
+        WidgetUpdater.allWidgetIds(context).toList()
+    }
+    val configs = remember(resumeCount, revision) {
+        widgetIds.associateWith { ConfigStore.load(context, it) }
+    }
+    val exactAlarms = remember(resumeCount) { TickScheduler.canScheduleExact(context) }
 
     Scaffold(
         topBar = {
@@ -120,7 +136,7 @@ fun HomeScreen(onEditWidget: (Int) -> Unit) {
             } else {
                 items2("widget", widgetIds) { widgetId ->
                     WidgetCard(
-                        config = ConfigStore.load(context, widgetId),
+                        config = configs[widgetId] ?: Presets.default().config,
                         env = env,
                         onClick = { onEditWidget(widgetId) },
                     )
@@ -186,13 +202,17 @@ fun HomeScreen(onEditWidget: (Int) -> Unit) {
         ApplyPresetDialog(
             preset = preset,
             widgetIds = widgetIds,
+            configs = configs,
             env = env,
             onDismiss = { applying = null },
             onApply = { widgetId ->
                 ConfigStore.save(context, widgetId, preset.config)
-                WidgetUpdater.updateAll(context)
                 applying = null
+                revision++
                 Toast.makeText(context, "${preset.name} applied", Toast.LENGTH_SHORT).show()
+                // Re-rendering every placed widget is real work; keep it off the
+                // frame that is currently dismissing the dialog.
+                scope.launch(Dispatchers.Default) { WidgetUpdater.updateAll(context) }
             },
         )
     }
@@ -201,7 +221,7 @@ fun HomeScreen(onEditWidget: (Int) -> Unit) {
 // ---------------------------------------------------------------- cards --
 
 @Composable
-private fun HeroCard(env: RenderEnv) {
+private fun HeroCard(env: State<RenderEnv>) {
     val showcase = remember { Presets.byId("neon")?.config ?: Presets.default().config }
     Card(shape = RoundedCornerShape(26.dp)) {
         Column {
@@ -237,7 +257,7 @@ private fun HeroCard(env: RenderEnv) {
 }
 
 @Composable
-private fun WidgetCard(config: ClockConfig, env: RenderEnv, onClick: () -> Unit) {
+private fun WidgetCard(config: ClockConfig, env: State<RenderEnv>, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.clickable(onClick = onClick),
@@ -259,7 +279,7 @@ private fun WidgetCard(config: ClockConfig, env: RenderEnv, onClick: () -> Unit)
 }
 
 @Composable
-private fun PresetCard(preset: Preset, env: RenderEnv, onClick: () -> Unit) {
+private fun PresetCard(preset: Preset, env: State<RenderEnv>, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.clickable(onClick = onClick),
@@ -373,11 +393,11 @@ private fun SectionHeading(title: String, subtitle: String) {
 private fun ApplyPresetDialog(
     preset: Preset,
     widgetIds: List<Int>,
-    env: RenderEnv,
+    configs: Map<Int, ClockConfig>,
+    env: State<RenderEnv>,
     onDismiss: () -> Unit,
     onApply: (Int) -> Unit,
 ) {
-    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(preset.name) },
@@ -409,7 +429,7 @@ private fun ApplyPresetDialog(
                 } else {
                     Text(text = "Apply to:", style = MaterialTheme.typography.labelLarge)
                     widgetIds.forEach { widgetId ->
-                        val existing = ConfigStore.load(context, widgetId)
+                        val existing = configs[widgetId] ?: Presets.default().config
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -469,9 +489,18 @@ private fun <T> LazyListScope.items2(
     val rows = values.chunked(2)
     rows.forEachIndexed { index, row ->
         item(key = "$prefix-row-$index") {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Intrinsic min height so a short card next to a tall one still
+            // gives a straight row rather than a ragged one.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.height(IntrinsicSize.Min),
+            ) {
                 row.forEach { value ->
-                    Box(modifier = Modifier.weight(1f)) { card(value) }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) { card(value) }
                 }
                 if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
             }

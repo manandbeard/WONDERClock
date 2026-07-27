@@ -30,12 +30,24 @@ import kotlin.math.sqrt
  */
 object ClockRenderer {
 
-    /** Roughly 6 MB as ARGB_8888, comfortably inside the RemoteViews budget. */
-    private const val MAX_PIXELS = 1_600_000
+    /** Fallback ceiling for in-app previews, which have no launcher budget. */
+    const val DEFAULT_MAX_PIXELS = 1_600_000L
     private const val MAX_DIMENSION = 1_600
 
-    fun render(cfg: ClockConfig, widthPx: Int, heightPx: Int, env: RenderEnv): Bitmap {
-        val (width, height) = constrain(widthPx, heightPx)
+    /**
+     * [maxPixels] caps the bitmap. The launcher rejects a RemoteViews whose
+     * bitmaps add up to more than roughly two screens' worth of pixels, so a
+     * widget publishing several size variants has to divide that budget — see
+     * `WidgetUpdater`. Oversized widgets scale down rather than being refused.
+     */
+    fun render(
+        cfg: ClockConfig,
+        widthPx: Int,
+        heightPx: Int,
+        env: RenderEnv,
+        maxPixels: Long = DEFAULT_MAX_PIXELS,
+    ): Bitmap {
+        val (width, height) = constrain(widthPx, heightPx, maxPixels)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val palette = Palette(cfg, env)
@@ -56,14 +68,11 @@ object ClockRenderer {
         return bitmap
     }
 
-    /**
-     * Keeps the bitmap inside the launcher's per-widget memory budget while
-     * preserving the aspect ratio. Oversized widgets scale down rather than
-     * being cropped or refused.
-     */
-    private fun constrain(widthPx: Int, heightPx: Int): Pair<Int, Int> {
+    /** Scales the requested size down to fit [maxPixels], keeping the aspect ratio. */
+    private fun constrain(widthPx: Int, heightPx: Int, maxPixels: Long): Pair<Int, Int> {
         var width = widthPx.coerceAtLeast(1)
         var height = heightPx.coerceAtLeast(1)
+        val budget = maxPixels.coerceAtLeast(10_000L)
 
         val longest = max(width, height)
         if (longest > MAX_DIMENSION) {
@@ -73,8 +82,8 @@ object ClockRenderer {
         }
 
         val pixels = width.toLong() * height.toLong()
-        if (pixels > MAX_PIXELS) {
-            val factor = sqrt(MAX_PIXELS.toDouble() / pixels).toFloat()
+        if (pixels > budget) {
+            val factor = sqrt(budget.toDouble() / pixels).toFloat()
             width = (width * factor).toInt().coerceAtLeast(1)
             height = (height * factor).toInt().coerceAtLeast(1)
         }

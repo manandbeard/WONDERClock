@@ -5,10 +5,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -25,11 +24,15 @@ import kotlinx.coroutines.delay
  *
  * This is the same [ClockRenderer] call the widget makes, so what the settings
  * screen shows is not an approximation of the widget — it is the widget.
+ *
+ * [env] is passed as a [State] rather than a value on purpose: the clock is
+ * read inside this composable, so a tick invalidates the preview alone instead
+ * of every caller up the tree.
  */
 @Composable
 fun ClockPreview(
     config: ClockConfig,
-    env: RenderEnv,
+    env: State<RenderEnv>,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier) {
@@ -38,8 +41,9 @@ fun ClockPreview(
         val heightPx = with(density) { maxHeight.roundToPx() }
         if (widthPx <= 0 || heightPx <= 0) return@BoxWithConstraints
 
-        val bitmap = remember(config, widthPx, heightPx, env) {
-            ClockRenderer.render(config, widthPx, heightPx, env)
+        val now = env.value
+        val bitmap = remember(config, widthPx, heightPx, now) {
+            ClockRenderer.render(config, widthPx, heightPx, now)
         }
         Image(
             bitmap = bitmap.asImageBitmap(),
@@ -53,16 +57,19 @@ fun ClockPreview(
 /**
  * A [RenderEnv] that refreshes on a [periodMillis] boundary.
  *
- * The timestamp is snapped to that boundary so recomposition — and the bitmap
- * cache key with it — only changes when the drawing actually would. Detailed
- * previews tick every second; thumbnail grids tick once a minute.
+ * The timestamp is snapped to that boundary so the bitmap cache key only
+ * changes when the drawing actually would. Detailed previews tick every
+ * second; thumbnail grids tick once a minute.
+ *
+ * Returns a [State] so that reading the clock does not invalidate whoever
+ * called this — only whoever reads `.value`.
  */
 @Composable
-fun rememberLiveEnv(periodMillis: Long = 1_000L): RenderEnv {
+fun rememberLiveEnv(periodMillis: Long = 1_000L): State<RenderEnv> {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
 
-    var env by remember(periodMillis) {
+    val state = remember(periodMillis) {
         mutableStateOf(snapped(RenderEnv.preview(context), periodMillis))
     }
 
@@ -71,10 +78,10 @@ fun rememberLiveEnv(periodMillis: Long = 1_000L): RenderEnv {
         while (true) {
             val now = System.currentTimeMillis()
             delay((periodMillis - now % periodMillis).coerceAtLeast(50L))
-            env = snapped(RenderEnv.preview(context), periodMillis)
+            state.value = snapped(RenderEnv.preview(context), periodMillis)
         }
     }
-    return env
+    return state
 }
 
 private fun snapped(env: RenderEnv, periodMillis: Long): RenderEnv =

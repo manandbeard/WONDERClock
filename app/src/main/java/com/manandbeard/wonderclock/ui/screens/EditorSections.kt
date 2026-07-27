@@ -888,6 +888,10 @@ private fun AdvancedSection(config: ClockConfig, onChange: Edit) {
     val clipboard = LocalClipboardManager.current
     var naming by remember { mutableStateOf(false) }
     var pasting by remember { mutableStateOf(false) }
+    // Grabbed once, on the tap. Reading the clipboard during composition would
+    // re-read it on every recomposition, and Android 12+ raises a visible
+    // "pasted from your clipboard" notice on each read.
+    var pasteDraft by remember { mutableStateOf("") }
 
     val savedPresets = remember(naming) { ConfigStore.userPresets(context) }
 
@@ -895,7 +899,10 @@ private fun AdvancedSection(config: ClockConfig, onChange: Edit) {
         clipboard.setText(AnnotatedString(ConfigStore.exportJson(config)))
         Toast.makeText(context, "Config copied", Toast.LENGTH_SHORT).show()
     }
-    ValueRow(label = "Paste a config", value = "from clipboard or text") { pasting = true }
+    ValueRow(label = "Paste a config", value = "from clipboard or text") {
+        pasteDraft = clipboard.getText()?.text.orEmpty()
+        pasting = true
+    }
     ValueRow(label = "Save as my preset", value = "reuse it later") { naming = true }
 
     if (savedPresets.isNotEmpty()) {
@@ -936,11 +943,10 @@ private fun AdvancedSection(config: ClockConfig, onChange: Edit) {
         )
     }
     if (pasting) {
-        val fromClipboard = clipboard.getText()?.text.orEmpty()
         TextPromptDialog(
             title = "Paste a config",
             label = "WonderClock JSON",
-            initial = fromClipboard,
+            initial = pasteDraft,
             confirmLabel = "Apply",
             singleLine = false,
             onDismiss = { pasting = false },

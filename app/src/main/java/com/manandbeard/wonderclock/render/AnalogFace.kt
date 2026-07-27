@@ -303,7 +303,9 @@ private fun drawArrowHand(
     val headHalf = radius * width * 2.2f
     val tipX = centerX + cosine * radius * length
     val tipY = centerY + sine * radius * length
-    val neck = radius * (length - width * 5f)
+    // Where the head meets the shaft. Clamped so a very thick hand cannot push
+    // the neck behind the centre and turn the arrow inside out.
+    val neck = radius * (length - width * 5f).coerceAtLeast(length * 0.3f)
     val neckX = centerX + cosine * neck
     val neckY = centerY + sine * neck
     val backX = centerX - cosine * radius * tail

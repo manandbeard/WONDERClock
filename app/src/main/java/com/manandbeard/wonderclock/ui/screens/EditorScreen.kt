@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +46,6 @@ internal data class PreviewShape(val label: String, val ratio: Float)
 private val PREVIEW_SHAPES = listOf(
     PreviewShape("4×2", 250f / 110f),
     PreviewShape("2×2", 1f),
-    PreviewShape("4×4", 1f),
     PreviewShape("5×2", 320f / 110f),
     PreviewShape("4×1", 250f / 55f),
 )
@@ -118,7 +118,7 @@ fun EditorScreen(
 @Composable
 private fun PreviewPanel(
     config: ClockConfig,
-    env: RenderEnv,
+    env: State<RenderEnv>,
     shape: PreviewShape,
     backdrop: Backdrop,
     shapes: List<PreviewShape>,

@@ -65,13 +65,34 @@ object WidgetUpdater {
         env: RenderEnv,
     ): RemoteViews {
         val sizes = sizesFor(context, options)
+        val budget = bitmapBudget(context, sizes.size)
         // Android 12 can hold one layout per size and swap without a round trip
         // to us, which is what makes rotation and resizing look instant.
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && sizes.size > 1) {
-            RemoteViews(sizes.associateWith { size -> viewsForSize(context, config, widgetId, size, env) })
+            RemoteViews(
+                sizes.associateWith { size ->
+                    viewsForSize(context, config, widgetId, size, env, budget)
+                },
+            )
         } else {
-            viewsForSize(context, config, widgetId, sizes.first(), env)
+            viewsForSize(context, config, widgetId, sizes.first(), env, budget)
         }
+    }
+
+    /**
+     * Pixels each size variant may use.
+     *
+     * The launcher refuses a RemoteViews whose bitmaps exceed roughly two
+     * screens' worth of pixels, and that ceiling scales with the display — so a
+     * fixed cap that is comfortable on a 1080p phone blows the budget on a 720p
+     * one. Budgeting from the actual display, and splitting it across the
+     * variants, keeps the total at half the allowance on any device.
+     */
+    private fun bitmapBudget(context: Context, variantCount: Int): Long {
+        val metrics = context.resources.displayMetrics
+        val screenPixels = metrics.widthPixels.toLong() * metrics.heightPixels.toLong()
+        if (screenPixels <= 0L) return ClockRenderer.DEFAULT_MAX_PIXELS
+        return (screenPixels / variantCount.coerceAtLeast(1)).coerceAtLeast(120_000L)
     }
 
     private fun viewsForSize(
@@ -80,6 +101,7 @@ object WidgetUpdater {
         widgetId: Int,
         sizeDp: SizeF,
         env: RenderEnv,
+        maxPixels: Long,
     ): RemoteViews {
         val density = context.resources.displayMetrics.density
         val widthPx = (sizeDp.width * density).toInt().coerceAtLeast(1)
@@ -93,7 +115,7 @@ object WidgetUpdater {
         val views = RemoteViews(context.packageName, layout)
         views.setImageViewBitmap(
             R.id.wc_image,
-            ClockRenderer.render(config, widthPx, heightPx, env),
+            ClockRenderer.render(config, widthPx, heightPx, env, maxPixels),
         )
         views.setContentDescription(R.id.wc_image, spokenTime(config, env))
 
@@ -157,7 +179,8 @@ object WidgetUpdater {
         return listOf(SizeF(width.toFloat(), height.toFloat()))
     }
 
-    private const val MAX_SIZE_VARIANTS = 3
+    /** Portrait and landscape are what actually get used; more just costs memory. */
+    private const val MAX_SIZE_VARIANTS = 2
     private const val FALLBACK_WIDTH_DP = 250
     private const val FALLBACK_HEIGHT_DP = 110
 }

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -110,14 +109,32 @@ fun ColorPickerDialog(
     )
     val opaqueHue = Color(AndroidColor.HSVToColor(floatArrayOf(hue, 1f, 1f)))
 
-    fun adopt(color: Int) {
+    // The hex field is refreshed by the *other* controls only. Driving it off
+    // the colour itself would rewrite the field the instant a typed value first
+    // parsed, so "FF00" would jump to "FFFF0000" before the user finished.
+    fun refreshHex() {
+        val packed = AndroidColor.HSVToColor(
+            (alpha * 255f).toInt().coerceIn(0, 255),
+            floatArrayOf(hue, saturation, brightness),
+        )
+        hexDraft = hexOf(packed).removePrefix("#")
+    }
+
+    fun adopt(color: Int, syncHex: Boolean = true) {
         val hsv = FloatArray(3)
         AndroidColor.colorToHSV(color, hsv)
         hue = hsv[0]
         saturation = hsv[1]
         brightness = hsv[2]
         alpha = AndroidColor.alpha(color) / 255f
-        hexDraft = hexOf(color).removePrefix("#")
+        if (syncHex) refreshHex()
+    }
+
+    fun setSaturationValue(x: Float, y: Float, width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        saturation = (x / width).coerceIn(0f, 1f)
+        brightness = 1f - (y / height).coerceIn(0f, 1f)
+        refreshHex()
     }
 
     AlertDialog(
@@ -142,22 +159,25 @@ fun ColorPickerDialog(
                             .fillMaxSize()
                             .pointerInput(Unit) {
                                 detectTapGestures { offset ->
-                                    saturation = (offset.x / size.width).coerceIn(0f, 1f)
-                                    brightness = 1f - (offset.y / size.height).coerceIn(0f, 1f)
+                                    setSaturationValue(
+                                        offset.x, offset.y, size.width, size.height,
+                                    )
                                 }
                             }
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = { offset ->
-                                        saturation = (offset.x / size.width).coerceIn(0f, 1f)
-                                        brightness =
-                                            1f - (offset.y / size.height).coerceIn(0f, 1f)
+                                        setSaturationValue(
+                                            offset.x, offset.y, size.width, size.height,
+                                        )
                                     },
                                 ) { change, _ ->
-                                    saturation =
-                                        (change.position.x / size.width).coerceIn(0f, 1f)
-                                    brightness =
-                                        1f - (change.position.y / size.height).coerceIn(0f, 1f)
+                                    setSaturationValue(
+                                        change.position.x,
+                                        change.position.y,
+                                        size.width,
+                                        size.height,
+                                    )
                                     change.consume()
                                 }
                             },
@@ -186,14 +206,20 @@ fun ColorPickerDialog(
                 // ---------------------------------------------------- hue ----
                 SliderCanvas(
                     fraction = hue / 360f,
-                    onFraction = { hue = (it * 360f).coerceIn(0f, 360f) },
+                    onFraction = {
+                        hue = (it * 360f).coerceIn(0f, 360f)
+                        refreshHex()
+                    },
                     brush = Brush.horizontalGradient(HUE_STOPS),
                 )
 
                 // -------------------------------------------------- alpha ----
                 SliderCanvas(
                     fraction = alpha,
-                    onFraction = { alpha = it },
+                    onFraction = {
+                        alpha = it.coerceIn(0f, 1f)
+                        refreshHex()
+                    },
                     brush = Brush.horizontalGradient(
                         listOf(opaqueHue.copy(alpha = 0f), opaqueHue),
                     ),
@@ -221,7 +247,9 @@ fun ColorPickerDialog(
                             val cleaned = raw.trim().removePrefix("#").take(8)
                                 .filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
                             hexDraft = cleaned
-                            parseHex(cleaned)?.let { adopt(it) }
+                            // syncHex = false: the field is the source here, so
+                            // rewriting it would fight the user mid-entry.
+                            parseHex(cleaned)?.let { adopt(it, syncHex = false) }
                         },
                         label = { Text("AARRGGBB") },
                         singleLine = true,

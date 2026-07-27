@@ -198,7 +198,7 @@ fun TextRow(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
-        placeholder = if (placeholder.isEmpty()) null else ({ Text(placeholder) }),
+        placeholder = { if (placeholder.isNotEmpty()) Text(placeholder) },
         singleLine = singleLine,
         modifier = Modifier
             .fillMaxWidth()
