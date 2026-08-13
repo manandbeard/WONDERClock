@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stick Figure Fight</title>
+<style>
+  body {
+    background: #222;
+    color: #eee;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  canvas {
+    background: #111;
+    border: 2px solid #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>Stick Figure Fight</h1>
+<p>Player 1: A / D to move, W to punch &nbsp;&nbsp;|&nbsp;&nbsp; Player 2: &larr; / &rarr; to move, &uarr; to punch</p>
+<canvas id="screen" width="800" height="400"></canvas>
+
+<script>
+// ---------------------------------------------------------------
+// 1. SETUP
+// ---------------------------------------------------------------
+
+const canvas = document.getElementById("screen");
+const ctx = canvas.getContext("2d");
+
+const GROUND = 330;   // the y position of the floor
+const SPEED = 4;      // how fast a player walks
+const REACH = 90;     // how close you must be to land a punch
+
+// Each player is just an object holding a few numbers.
+function makePlayer(x, facing, color, name) {
+  return {
+    x: x,             // position left/right
+    facing: facing,   // 1 = looking right, -1 = looking left
+    color: color,
+    name: name,
+    hearts: 3,        // lives
+    punchTimer: 0     // frames left in the punch animation
+  };
+}
+
+let p1, p2, winner;
+
+function startGame() {
+  p1 = makePlayer(200, 1, "#4af", "Player 1");
+  p2 = makePlayer(600, -1, "#f74", "Player 2");
+  winner = null;
+}
+
+startGame();
+
+// ---------------------------------------------------------------
+// 2. KEYBOARD
+// ---------------------------------------------------------------
+
+// keys.a is true while the "a" key is held down.
+const keys = {};
+
+document.addEventListener("keydown", function (event) {
+  const key = event.key.toLowerCase();
+
+  // Punches happen once per key press, not while the key is held.
+  if (!keys[key] && !winner) {
+    if (key === "w") punch(p1, p2);
+    if (key === "arrowup") punch(p2, p1);
+  }
+
+  if (key === "r" && winner) startGame();
+
+  keys[key] = true;
+});
+
+document.addEventListener("keyup", function (event) {
+  keys[event.key.toLowerCase()] = false;
+});
+
+// ---------------------------------------------------------------
+// 3. GAME RULES
+// ---------------------------------------------------------------
+
+function punch(attacker, target) {
+  if (attacker.punchTimer > 0) return;  // still busy with the last punch
+  attacker.punchTimer = 12;
+
+  const distance = target.x - attacker.x;
+
+  // A hit counts if the target is close AND in front of the attacker.
+  const closeEnough = Math.abs(distance) < REACH;
+  const inFront = (distance > 0 && attacker.facing === 1) ||
+                  (distance < 0 && attacker.facing === -1);
+
+  if (closeEnough && inFront) {
+    target.hearts = target.hearts - 1;
+    target.x = target.x + attacker.facing * 40;   // knock them backwards
+    if (target.hearts === 0) winner = attacker.name;
+  }
+}
+
+function movePlayer(player, other, leftKey, rightKey) {
+  if (keys[leftKey]) player.x = player.x - SPEED;
+  if (keys[rightKey]) player.x = player.x + SPEED;
+
+  // Keep the player on the screen.
+  if (player.x < 40) player.x = 40;
+  if (player.x > canvas.width - 40) player.x = canvas.width - 40;
+
+  // Players cannot walk through each other.
+  if (Math.abs(player.x - other.x) < 50) {
+    player.x = player.x < other.x ? other.x - 50 : other.x + 50;
+  }
+}
+
+function update() {
+  if (winner) return;
+
+  movePlayer(p1, p2, "a", "d");
+  movePlayer(p2, p1, "arrowleft", "arrowright");
+
+  // Players always turn to face each other.
+  p1.facing = p1.x < p2.x ? 1 : -1;
+  p2.facing = p2.x < p1.x ? 1 : -1;
+
+  if (p1.punchTimer > 0) p1.punchTimer--;
+  if (p2.punchTimer > 0) p2.punchTimer--;
+}
+
+// ---------------------------------------------------------------
+// 4. DRAWING
+// ---------------------------------------------------------------
+
+// A helper so we do not repeat ctx.beginPath() everywhere.
+function drawLine(points) {
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i][0], points[i][1]);
+  }
+  ctx.stroke();
+}
+
+// Every fighter is made of exactly three lines plus a head.
+function drawPlayer(player) {
+  const x = player.x;
+  const hipY = GROUND - 50;
+  const shoulderY = GROUND - 95;
+
+  // The punching arm stretches out while punchTimer is running.
+  const reach = player.punchTimer > 0 ? 55 : 22;
+
+  ctx.strokeStyle = player.color;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+
+  drawLine([[x - 18, GROUND], [x, hipY], [x + 18, GROUND]]);          // line 1: legs
+  drawLine([[x, hipY], [x, shoulderY]]);                              // line 2: body
+  drawLine([[x - player.facing * 22, shoulderY],                      // line 3: arms
+            [x, shoulderY],
+            [x + player.facing * reach, shoulderY]]);
+
+  // head
+  ctx.beginPath();
+  ctx.arc(x, shoulderY - 16, 13, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawHearts(player, x, y) {
+  ctx.font = "26px sans-serif";
+  ctx.textAlign = "left";
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = i < player.hearts ? player.color : "#444";
+    ctx.fillText("♥", x + i * 30, y);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // floor
+  ctx.strokeStyle = "#555";
+  ctx.lineWidth = 2;
+  drawLine([[0, GROUND], [canvas.width, GROUND]]);
+
+  drawPlayer(p1);
+  drawPlayer(p2);
+
+  drawHearts(p1, 20, 40);
+  drawHearts(p2, canvas.width - 110, 40);
+
+  if (winner) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "40px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(winner + " wins!", canvas.width / 2, 120);
+    ctx.font = "20px sans-serif";
+    ctx.fillText("Press R to play again", canvas.width / 2, 160);
+  }
+}
+
+// ---------------------------------------------------------------
+// 5. THE GAME LOOP: update, draw, repeat about 60 times a second.
+// ---------------------------------------------------------------
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
